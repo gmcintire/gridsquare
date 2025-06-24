@@ -11,8 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        elixir: [1.15.7, 1.16.2, 1.19.0-rc.0]
-        otp: [27.3.4]
+        elixir: ["1.16.2", "1.19.0-rc.0"]
+        otp: ["26.0.2", "27.3.4"]
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
