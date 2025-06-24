@@ -42,7 +42,6 @@ defmodule Gridsquare do
   @type grid_height :: float()
 
   defmodule EncodeResult do
-    @moduledoc false
     @enforce_keys [:grid_reference, :subsquare]
     defstruct [:grid_reference, :subsquare]
     @typedoc "Result of encode/3"
@@ -53,7 +52,6 @@ defmodule Gridsquare do
   end
 
   defmodule DecodeResult do
-    @moduledoc false
     @enforce_keys [:latitude, :longitude, :width, :height]
     defstruct [:latitude, :longitude, :width, :height]
     @typedoc "Result of decode/1"
@@ -66,7 +64,6 @@ defmodule Gridsquare do
   end
 
   defmodule GridSquare do
-    @moduledoc false
     @enforce_keys [:grid_reference, :center, :width, :height]
     defstruct [:grid_reference, :center, :width, :height]
     @typedoc "GridSquare struct"
