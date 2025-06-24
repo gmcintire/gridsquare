@@ -11,7 +11,7 @@ defmodule Gridsquare.MixProject do
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      name: "Gridsquare",
+      name: "gridsquare",
       description:
         "GridSquare calculator for encoding/decoding between latitude/longitude and Maidenhead Locator System grid references",
       package: package(),
