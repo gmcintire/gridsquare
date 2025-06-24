@@ -117,22 +117,6 @@ Each additional pair increases precision by approximately 10x.
 
 ## Examples
 
-### Ham Radio QSO Location Exchange
-
-```elixir
-# Station A at coordinates
-station_a_grid = Gridsquare.encode(-74.0060, 40.7128)
-# %Gridsquare.EncodeResult{grid_reference: "FN30lk", subsquare: "fn30lk"}
-
-# Station B decodes the location
-location = Gridsquare.decode("FN30lk")
-# %Gridsquare.DecodeResult{latitude: 40.70833333333333, longitude: -74.0, width: 0.08333333333333333, height: 0.041666666666666664}
-
-# Station B can now see Station A is in New York City area
-```
-
-### High Precision Location Tracking
-
 ```elixir
 # High precision encoding for precise location
 precise_grid = Gridsquare.encode(-111.866785, 40.363840, 12)
@@ -153,7 +137,7 @@ precise_location = Gridsquare.decode("DN40BI00OR12")
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPLv2 License - see the [LICENSE](LICENSE) file for details.
 
 ## Documentation
 
