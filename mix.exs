@@ -53,7 +53,7 @@ defmodule Gridsquare.MixProject do
   defp package do
     [
       maintainers: ["Graham McIntire"],
-      licenses: ["MIT"],
+      licenses: ["GPL-2.0"],
       links: %{
         "GitHub" => @source_url,
         "HexDocs" => "https://hexdocs.pm/gridsquare"
