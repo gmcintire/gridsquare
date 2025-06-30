@@ -137,7 +137,7 @@ precise_location = Gridsquare.decode("DN40BI00OR12")
 
 ## License
 
-This project is licensed under the GPLv2 License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GPLv2 License - see the [LICENSE](https://github.com/gmcintire/gridsquare/blob/main/LICENSE) file for details.
 
 ## Documentation
 

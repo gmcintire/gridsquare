@@ -42,42 +42,66 @@ defmodule Gridsquare do
   @type grid_height :: float()
 
   defmodule EncodeResult do
+    @moduledoc """
+    Result struct for Gridsquare.encode/3.
+    """
     @enforce_keys [:grid_reference, :subsquare]
     defstruct [:grid_reference, :subsquare]
     @typedoc "Result of encode/3"
     @type t :: %__MODULE__{
-              grid_reference: Gridsquare.grid_reference(),
-              subsquare: Gridsquare.subsquare()
-            }
+            grid_reference: Gridsquare.grid_reference(),
+            subsquare: Gridsquare.subsquare()
+          }
   end
 
   defmodule DecodeResult do
+    @moduledoc """
+    Result struct for Gridsquare.decode/1.
+    """
     @enforce_keys [:latitude, :longitude, :width, :height]
     defstruct [:latitude, :longitude, :width, :height]
     @typedoc "Result of decode/1"
     @type t :: %__MODULE__{
-              latitude: Gridsquare.latitude(),
-              longitude: Gridsquare.longitude(),
-              width: Gridsquare.grid_width(),
-              height: Gridsquare.grid_height()
-            }
+            latitude: Gridsquare.latitude(),
+            longitude: Gridsquare.longitude(),
+            width: Gridsquare.grid_width(),
+            height: Gridsquare.grid_height()
+          }
   end
 
   defmodule GridSquare do
+    @moduledoc """
+    Struct representing a decoded grid square.
+    """
     @enforce_keys [:grid_reference, :center, :width, :height]
     defstruct [:grid_reference, :center, :width, :height]
     @typedoc "GridSquare struct"
     @type t :: %__MODULE__{
-              grid_reference: Gridsquare.grid_reference(),
-              center: %{latitude: Gridsquare.latitude(), longitude: Gridsquare.longitude()},
-              width: Gridsquare.grid_width(),
-              height: Gridsquare.grid_height()
-            }
+            grid_reference: Gridsquare.grid_reference(),
+            center: %{latitude: Gridsquare.latitude(), longitude: Gridsquare.longitude()},
+            width: Gridsquare.grid_width(),
+            height: Gridsquare.grid_height()
+          }
+  end
+
+  defmodule DistanceResult do
+    @moduledoc """
+    Result struct for Gridsquare.distance_between/2.
+    """
+    @enforce_keys [:distance_km, :distance_mi, :bearing_degrees]
+    defstruct [:distance_km, :distance_mi, :bearing_degrees]
+    @typedoc "Result of distance_between/2"
+    @type t :: %__MODULE__{
+            distance_km: float(),
+            distance_mi: float(),
+            bearing_degrees: float()
+          }
   end
 
   @type encode_result :: EncodeResult.t()
   @type decode_result :: DecodeResult.t()
   @type grid_square :: GridSquare.t()
+  @type distance_result :: DistanceResult.t()
 
   @typedoc "Internal coordinates for extended precision"
   @type coordinates :: %{
@@ -219,6 +243,176 @@ defmodule Gridsquare do
       width: decoded.width,
       height: decoded.height
     }
+  end
+
+  @doc """
+  Calculates the distance and direction between two grid squares.
+
+  Returns a struct with:
+  - `distance_km`: Distance in kilometers
+  - `distance_mi`: Distance in miles
+  - `bearing_degrees`: Bearing in degrees (0-360)
+
+  ## Examples
+
+      iex> result = Gridsquare.distance_between("DN40bi", "DN40bj")
+      iex> %Gridsquare.DistanceResult{distance_km: distance_km, distance_mi: distance_mi, bearing_degrees: bearing_degrees} = result
+      iex> distance_km > 0
+      true
+      iex> distance_mi > 0
+      true
+      iex> bearing_degrees >= 0 and bearing_degrees <= 360
+      true
+
+      iex> result = Gridsquare.distance_between("DN40bi", "DN40ci")
+      iex> %Gridsquare.DistanceResult{distance_km: distance_km, distance_mi: distance_mi, bearing_degrees: bearing_degrees} = result
+      iex> distance_km > 0
+      true
+      iex> distance_mi > 0
+      true
+      iex> bearing_degrees >= 0 and bearing_degrees <= 360
+      true
+
+      iex> result = Gridsquare.distance_between("DN40bi", "DN40cj")
+      iex> %Gridsquare.DistanceResult{distance_km: distance_km, distance_mi: distance_mi, bearing_degrees: bearing_degrees} = result
+      iex> distance_km > 0
+      true
+      iex> distance_mi > 0
+      true
+      iex> bearing_degrees >= 0 and bearing_degrees <= 360
+      true
+  """
+  @spec distance_between(grid_reference(), grid_reference()) :: distance_result()
+  def distance_between(grid_ref1, grid_ref2) when is_binary(grid_ref1) and is_binary(grid_ref2) do
+    grid1 = new(grid_ref1)
+    grid2 = new(grid_ref2)
+
+    c1 = grid1.center
+    c2 = grid2.center
+    w_deg = grid1.width
+    h_deg = grid1.height
+
+    # Calculate deltas in longitude and latitude (in grid units)
+    lon_delta = abs(c1.longitude - c2.longitude)
+    lat_delta = abs(c1.latitude - c2.latitude)
+
+    calculate_distance_result(c1, c2, lon_delta, lat_delta, w_deg, h_deg)
+  end
+
+  @doc false
+  @spec calculate_distance_result(
+          %{latitude: float(), longitude: float()},
+          %{latitude: float(), longitude: float()},
+          float(),
+          float(),
+          float(),
+          float()
+        ) :: distance_result()
+  defp calculate_distance_result(c1, c2, lon_delta, lat_delta, w_deg, h_deg) do
+    cond do
+      east_west_adjacent?(lat_delta, lon_delta, w_deg) ->
+        calculate_east_west_distance(c1, c2, w_deg)
+
+      north_south_adjacent?(lon_delta, lat_delta, h_deg) ->
+        calculate_north_south_distance(c1, c2, h_deg)
+
+      diagonal_adjacent?(lon_delta, lat_delta, w_deg, h_deg) ->
+        calculate_diagonal_distance(c1, c2, w_deg, h_deg)
+
+      true ->
+        calculate_center_to_center_distance(c1, c2)
+    end
+  end
+
+  @doc false
+  @spec east_west_adjacent?(float(), float(), float()) :: boolean()
+  defp east_west_adjacent?(lat_delta, lon_delta, w_deg) do
+    lat_delta < 1.0e-3 and abs(lon_delta - w_deg) < 1.0e-3
+  end
+
+  @doc false
+  @spec north_south_adjacent?(float(), float(), float()) :: boolean()
+  defp north_south_adjacent?(lon_delta, lat_delta, h_deg) do
+    lon_delta < 1.0e-3 and abs(lat_delta - h_deg) < 1.0e-3
+  end
+
+  @doc false
+  @spec diagonal_adjacent?(float(), float(), float(), float()) :: boolean()
+  defp diagonal_adjacent?(lon_delta, lat_delta, w_deg, h_deg) do
+    abs(lon_delta - w_deg) < 1.0e-3 and abs(lat_delta - h_deg) < 1.0e-3
+  end
+
+  @doc false
+  @spec calculate_east_west_distance(
+          %{latitude: float(), longitude: float()},
+          %{latitude: float(), longitude: float()},
+          float()
+        ) :: distance_result()
+  defp calculate_east_west_distance(c1, c2, w_deg) do
+    d_km = calculate_width_km(c1.latitude, w_deg)
+    d_mi = Float.round(d_km * 0.621371, 2)
+    bearing = if c2.longitude > c1.longitude, do: 90.0, else: 270.0
+    %DistanceResult{distance_km: d_km, distance_mi: d_mi, bearing_degrees: bearing}
+  end
+
+  @doc false
+  @spec calculate_north_south_distance(
+          %{latitude: float(), longitude: float()},
+          %{latitude: float(), longitude: float()},
+          float()
+        ) :: distance_result()
+  defp calculate_north_south_distance(c1, c2, h_deg) do
+    d_km = calculate_height_km(h_deg)
+    d_mi = Float.round(d_km * 0.621371, 2)
+    bearing = if c2.latitude > c1.latitude, do: 0.0, else: 180.0
+    %DistanceResult{distance_km: d_km, distance_mi: d_mi, bearing_degrees: bearing}
+  end
+
+  @doc false
+  @spec calculate_diagonal_distance(
+          %{latitude: float(), longitude: float()},
+          %{latitude: float(), longitude: float()},
+          float(),
+          float()
+        ) :: distance_result()
+  defp calculate_diagonal_distance(c1, c2, w_deg, h_deg) do
+    width_km = calculate_width_km(c1.latitude, w_deg)
+    height_km = calculate_height_km(h_deg)
+    d_km = :math.sqrt(:math.pow(width_km, 2) + :math.pow(height_km, 2))
+    d_mi = Float.round(d_km * 0.621371, 2)
+    bearing = calculate_bearing(c1, c2)
+    %DistanceResult{distance_km: d_km, distance_mi: d_mi, bearing_degrees: bearing}
+  end
+
+  @doc false
+  @spec calculate_center_to_center_distance(
+          %{latitude: float(), longitude: float()},
+          %{latitude: float(), longitude: float()}
+        ) :: distance_result()
+  defp calculate_center_to_center_distance(c1, c2) do
+    d_km = haversine_distance(c1, c2)
+    d_mi = Float.round(d_km * 0.621371, 2)
+    bearing = calculate_bearing(c1, c2)
+    %DistanceResult{distance_km: d_km, distance_mi: d_mi, bearing_degrees: bearing}
+  end
+
+  @doc false
+  @spec calculate_width_km(float(), float()) :: float()
+  defp calculate_width_km(lat, w_deg) do
+    # Earth's radius in km
+    r = 6371.0
+    # Convert width in degrees to radians
+    w_rad = w_deg * :math.pi() / 180.0
+    # Calculate arc length at given latitude
+    r * w_rad * :math.cos(lat * :math.pi() / 180.0)
+  end
+
+  @doc false
+  @spec calculate_height_km(float()) :: float()
+  defp calculate_height_km(h_deg) do
+    r = 6371.0
+    h_rad = h_deg * :math.pi() / 180.0
+    r * h_rad
   end
 
   # Private helper functions
@@ -455,5 +649,62 @@ defmodule Gridsquare do
       ((lat + 90 - field_lat * 10 - square_lat) / (1 / 24)) |> Float.floor() |> trunc()
 
     {subsquare_lon, subsquare_lat}
+  end
+
+  # Distance and bearing calculation functions
+
+  @doc false
+  @spec haversine_distance(%{latitude: float(), longitude: float()}, %{
+          latitude: float(),
+          longitude: float()
+        }) :: float()
+  defp haversine_distance(%{latitude: lat1, longitude: lon1}, %{latitude: lat2, longitude: lon2}) do
+    # Convert degrees to radians
+    lat1_rad = lat1 * :math.pi() / 180
+    lat2_rad = lat2 * :math.pi() / 180
+    delta_lat_rad = (lat2 - lat1) * :math.pi() / 180
+    delta_lon_rad = (lon2 - lon1) * :math.pi() / 180
+
+    # Earth's radius in kilometers
+    earth_radius_km = 6371
+
+    # Haversine formula
+    a =
+      :math.sin(delta_lat_rad / 2) * :math.sin(delta_lat_rad / 2) +
+        :math.cos(lat1_rad) * :math.cos(lat2_rad) *
+          :math.sin(delta_lon_rad / 2) * :math.sin(delta_lon_rad / 2)
+
+    c = 2 * :math.atan2(:math.sqrt(a), :math.sqrt(1 - a))
+
+    # Round to 2 decimal places
+    Float.round(earth_radius_km * c, 2)
+  end
+
+  @doc false
+  @spec calculate_bearing(%{latitude: float(), longitude: float()}, %{
+          latitude: float(),
+          longitude: float()
+        }) :: float()
+  defp calculate_bearing(%{latitude: lat1, longitude: lon1}, %{latitude: lat2, longitude: lon2}) do
+    # Convert degrees to radians
+    lat1_rad = lat1 * :math.pi() / 180
+    lat2_rad = lat2 * :math.pi() / 180
+    delta_lon_rad = (lon2 - lon1) * :math.pi() / 180
+
+    # Calculate bearing
+    y = :math.sin(delta_lon_rad) * :math.cos(lat2_rad)
+
+    x =
+      :math.cos(lat1_rad) * :math.sin(lat2_rad) -
+        :math.sin(lat1_rad) * :math.cos(lat2_rad) * :math.cos(delta_lon_rad)
+
+    bearing_rad = :math.atan2(y, x)
+    bearing_deg = bearing_rad * 180 / :math.pi()
+
+    # Normalize to 0-360 degrees using fmod for floating point
+    normalized_bearing = :math.fmod(bearing_deg + 360, 360)
+
+    # Round to 1 decimal place
+    Float.round(normalized_bearing, 1)
   end
 end
