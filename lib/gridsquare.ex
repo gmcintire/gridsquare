@@ -602,7 +602,7 @@ defmodule Gridsquare do
     # Clamp latitude to just below 90
     normalized_lat =
       cond do
-        lat < -90 -> -90
+        lat < -90 -> -90.0
         lat >= 90 -> 89.999999
         true -> lat
       end

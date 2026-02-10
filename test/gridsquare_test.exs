@@ -45,6 +45,18 @@ defmodule GridsquareTest do
       assert %Gridsquare.EncodeResult{} = result2
       assert result1.grid_reference == result2.grid_reference
     end
+
+    test "normalizes longitude below -180" do
+      result1 = Gridsquare.encode(-200.0, 0.0)
+      result2 = Gridsquare.encode(160.0, 0.0)
+      assert result1.grid_reference == result2.grid_reference
+    end
+
+    test "clamps latitude below -90" do
+      result1 = Gridsquare.encode(0.0, -100.0)
+      result2 = Gridsquare.encode(0.0, -90.0)
+      assert result1.grid_reference == result2.grid_reference
+    end
   end
 
   describe "decode/1" do
