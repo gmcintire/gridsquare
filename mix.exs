@@ -42,7 +42,7 @@ defmodule Gridsquare.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:styler, "~> 1.4.2", only: [:dev, :test], runtime: false},
+      {:styler, "~> 1.10", only: [:dev, :test], runtime: false},
       {:mix_test_watch, "~> 1.1", only: [:dev, :test]},
       {:dialyxir, "~> 1.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
