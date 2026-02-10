@@ -21,7 +21,7 @@ The package can be installed by adding `gridsquare` to your list of dependencies
 ```elixir
 def deps do
   [
-    {:gridsquare, "~> 0.1.0"}
+    {:gridsquare, "~> 0.3.0"}
   ]
 end
 ```
@@ -37,7 +37,7 @@ Gridsquare.encode(-111.866785, 40.363840)
 
 # Extended precision (10-character precision)
 Gridsquare.encode(-111.866785, 40.363840, 10)
-# Returns: %Gridsquare.EncodeResult{grid_reference: "DN40BI00OR", subsquare: "dn40bi"}
+# Returns: %Gridsquare.EncodeResult{grid_reference: "DN40BI57XH", subsquare: "dn40bi"}
 ```
 
 ### Decoding grid square to coordinates
@@ -81,7 +81,7 @@ Encodes latitude and longitude coordinates to a Maidenhead grid square reference
 **Parameters:**
 - `longitude` (float): Longitude coordinate (-180 to 180)
 - `latitude` (float): Latitude coordinate (-90 to 90)
-- `precision` (integer): Number of characters in the grid reference (6 to 20, default: 6)
+- `precision` (integer): Number of characters in the grid reference (even values 6 to 20, default: 6)
 
 **Returns:** `%Gridsquare.EncodeResult{grid_reference: String.t(), subsquare: String.t()}`
 
@@ -120,11 +120,11 @@ Each additional pair increases precision by approximately 10x.
 ```elixir
 # High precision encoding for precise location
 precise_grid = Gridsquare.encode(-111.866785, 40.363840, 12)
-# %Gridsquare.EncodeResult{grid_reference: "DN40BI00OR12", subsquare: "dn40bi"}
+# %Gridsquare.EncodeResult{grid_reference: "DN40BI57XH67", subsquare: "dn40bi"}
 
-# Decode back to coordinates
-precise_location = Gridsquare.decode("DN40BI00OR12")
-# Returns %Gridsquare.DecodeResult{} with much higher precision
+# Decode back to coordinates with progressively smaller grid dimensions
+precise_location = Gridsquare.decode("DN40BI57XH67")
+# Returns %Gridsquare.DecodeResult{} with higher precision width/height
 ```
 
 ## Contributing
