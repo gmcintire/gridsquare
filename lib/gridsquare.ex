@@ -124,10 +124,11 @@ defmodule Gridsquare do
       %Gridsquare.EncodeResult{grid_reference: "DN40bi", subsquare: "dn40bi"}
 
       iex> Gridsquare.encode(-111.866785, 40.363840, 10)
-      %Gridsquare.EncodeResult{grid_reference: "DN40BI00OR", subsquare: "dn40bi"}
+      %Gridsquare.EncodeResult{grid_reference: "DN40BI57XH", subsquare: "dn40bi"}
   """
   @spec encode(longitude(), latitude(), precision()) :: encode_result()
-  def encode(lon, lat, precision \\ 6) when precision >= 6 and precision <= 20 do
+  def encode(lon, lat, precision \\ 6)
+      when precision >= 6 and precision <= 20 and rem(precision, 2) == 0 do
     {normalized_lon, normalized_lat} = normalize_coordinates(lon, lat)
     {field_lon, field_lat} = calculate_fields(normalized_lon, normalized_lat)
 
@@ -207,15 +208,23 @@ defmodule Gridsquare do
     subsquare_lon = from_base24(String.at(grid_reference, 4))
     subsquare_lat = from_base24(String.at(grid_reference, 5))
 
-    # Calculate center coordinates (Ruby gem logic)
-    lon = -180 + field_lon * 20 + square_lon * 2 + subsquare_lon * (2 / 24) + 2 / 24 / 2
-    lat = -90 + field_lat * 10 + square_lat + subsquare_lat * (1 / 24) + 1 / 24 / 2
+    # Calculate base offset (without centering)
+    base_lon = -180 + field_lon * 20 + square_lon * 2 + subsquare_lon * (2 / 24)
+    base_lat = -90 + field_lat * 10 + square_lat + subsquare_lat * (1 / 24)
 
-    # Calculate dimensions
-    # 5 minutes
-    width = 2 / 24
-    # 2.5 minutes
-    height = 1 / 24
+    # Starting divisors at subsquare level
+    base_lon_div = 2 / 24
+    base_lat_div = 1 / 24
+
+    # Parse extended precision pairs if present
+    {lon, lat, width, height} =
+      decode_extended_pairs(
+        grid_reference,
+        base_lon,
+        base_lat,
+        base_lon_div,
+        base_lat_div
+      )
 
     %DecodeResult{latitude: lat, longitude: lon, width: width, height: height}
   end
@@ -284,17 +293,22 @@ defmodule Gridsquare do
   """
   @spec distance_between(grid_reference(), grid_reference()) :: distance_result()
   def distance_between(grid_ref1, grid_ref2) when is_binary(grid_ref1) and is_binary(grid_ref2) do
+    # Use full-precision centers for distance calculation
     grid1 = new(grid_ref1)
     grid2 = new(grid_ref2)
 
     c1 = grid1.center
     c2 = grid2.center
-    w_deg = grid1.width
-    h_deg = grid1.height
 
-    # Calculate deltas in longitude and latitude (in grid units)
-    lon_delta = abs(c1.longitude - c2.longitude)
-    lat_delta = abs(c1.latitude - c2.latitude)
+    # Normalize to 6-char subsquare level for adjacency detection
+    sub1 = new(String.slice(grid_ref1, 0, 6))
+    sub2 = new(String.slice(grid_ref2, 0, 6))
+    w_deg = sub1.width
+    h_deg = sub1.height
+
+    # Calculate deltas using subsquare-level centers for adjacency detection
+    lon_delta = abs(sub1.center.longitude - sub2.center.longitude)
+    lat_delta = abs(sub1.center.latitude - sub2.center.latitude)
 
     calculate_distance_result(c1, c2, lon_delta, lat_delta, w_deg, h_deg)
   end
@@ -423,32 +437,7 @@ defmodule Gridsquare do
   end
 
   @spec from_base18(base18_char()) :: field_index()
-  defp from_base18(char)
-       when char in [
-              "A",
-              "B",
-              "C",
-              "D",
-              "E",
-              "F",
-              "G",
-              "H",
-              "I",
-              "J",
-              "K",
-              "L",
-              "M",
-              "N",
-              "O",
-              "P",
-              "Q",
-              "R"
-            ] do
-    Enum.find_index(
-      ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R"],
-      &(&1 == char)
-    )
-  end
+  defp from_base18(<<c>>) when c in ?A..?R, do: c - ?A
 
   @spec to_base24(subsquare_index()) :: base24_char()
   defp to_base24(n) when n >= 0 and n < 24 do
@@ -456,63 +445,7 @@ defmodule Gridsquare do
   end
 
   @spec from_base24(base24_char()) :: subsquare_index()
-  defp from_base24(char)
-       when char in [
-              "A",
-              "B",
-              "C",
-              "D",
-              "E",
-              "F",
-              "G",
-              "H",
-              "I",
-              "J",
-              "K",
-              "L",
-              "M",
-              "N",
-              "O",
-              "P",
-              "Q",
-              "R",
-              "S",
-              "T",
-              "U",
-              "V",
-              "W",
-              "X"
-            ] do
-    Enum.find_index(
-      [
-        "A",
-        "B",
-        "C",
-        "D",
-        "E",
-        "F",
-        "G",
-        "H",
-        "I",
-        "J",
-        "K",
-        "L",
-        "M",
-        "N",
-        "O",
-        "P",
-        "Q",
-        "R",
-        "S",
-        "T",
-        "U",
-        "V",
-        "W",
-        "X"
-      ],
-      &(&1 == char)
-    )
-  end
+  defp from_base24(<<c>>) when c in ?A..?X, do: c - ?A
 
   @spec add_extended_precision(coordinates(), precision()) :: grid_reference()
   defp add_extended_precision(
@@ -538,39 +471,97 @@ defmodule Gridsquare do
     current_lon = lon - (-180 + field_lon * 20 + square_lon * 2 + subsquare_lon * (2 / 24))
     current_lat = lat - (-90 + field_lat * 10 + square_lat + subsquare_lat * (1 / 24))
 
-    {extended, _} =
-      Enum.reduce(1..remaining_pairs, {base_reference, {current_lon, current_lat}}, fn i,
-                                                                                       {acc,
-                                                                                        {curr_lon,
-                                                                                         curr_lat}} ->
-        if rem(i, 2) == 1 do
-          # Base 10 pair
-          lon_divisor = 2 / (24 * :math.pow(10, div(i - 1, 2)))
-          lat_divisor = 1 / (24 * :math.pow(10, div(i - 1, 2)))
+    # Start with subsquare divisors and chain through each pair
+    init_lon_div = 2 / 24
+    init_lat_div = 1 / 24
 
-          extended_lon = trunc(curr_lon / lon_divisor)
-          extended_lat = trunc(curr_lat / lat_divisor)
+    {extended, _, _} =
+      Enum.reduce(
+        1..remaining_pairs,
+        {base_reference, {current_lon, current_lat}, {init_lon_div, init_lat_div}},
+        fn i, {acc, {curr_lon, curr_lat}, {prev_lon_div, prev_lat_div}} ->
+          if rem(i, 2) == 1 do
+            # Base 10 pair - subdivide previous level by 10
+            lon_divisor = prev_lon_div / 10
+            lat_divisor = prev_lat_div / 10
 
-          new_lon = curr_lon - extended_lon * lon_divisor
-          new_lat = curr_lat - extended_lat * lat_divisor
+            extended_lon = min(trunc(curr_lon / lon_divisor), 9)
+            extended_lat = min(trunc(curr_lat / lat_divisor), 9)
 
-          {acc <> "#{extended_lon}#{extended_lat}", {new_lon, new_lat}}
-        else
-          # Base 24 pair
-          lon_divisor = 2 / (24 * :math.pow(10, div(i - 1, 2)) * 24)
-          lat_divisor = 1 / (24 * :math.pow(10, div(i - 1, 2)) * 24)
+            new_lon = curr_lon - extended_lon * lon_divisor
+            new_lat = curr_lat - extended_lat * lat_divisor
 
-          extended_lon = trunc(curr_lon / lon_divisor)
-          extended_lat = trunc(curr_lat / lat_divisor)
+            {acc <> "#{extended_lon}#{extended_lat}", {new_lon, new_lat},
+             {lon_divisor, lat_divisor}}
+          else
+            # Base 24 pair - subdivide previous level by 24
+            lon_divisor = prev_lon_div / 24
+            lat_divisor = prev_lat_div / 24
 
-          new_lon = curr_lon - extended_lon * lon_divisor
-          new_lat = curr_lat - extended_lat * lat_divisor
+            extended_lon = min(trunc(curr_lon / lon_divisor), 23)
+            extended_lat = min(trunc(curr_lat / lat_divisor), 23)
 
-          {acc <> "#{to_base24(extended_lon)}#{to_base24(extended_lat)}", {new_lon, new_lat}}
+            new_lon = curr_lon - extended_lon * lon_divisor
+            new_lat = curr_lat - extended_lat * lat_divisor
+
+            {acc <> "#{to_base24(extended_lon)}#{to_base24(extended_lat)}", {new_lon, new_lat},
+             {lon_divisor, lat_divisor}}
+          end
         end
-      end)
+      )
 
     extended
+  end
+
+  @spec decode_extended_pairs(String.t(), float(), float(), float(), float()) ::
+          {float(), float(), float(), float()}
+  defp decode_extended_pairs(grid_reference, base_lon, base_lat, lon_div, lat_div) do
+    len = String.length(grid_reference)
+
+    if len <= 6 do
+      # No extended pairs - center within subsquare
+      {base_lon + lon_div / 2, base_lat + lat_div / 2, lon_div, lat_div}
+    else
+      remaining = String.slice(grid_reference, 6, len - 6)
+
+      pairs =
+        for i <- 0..(div(String.length(remaining), 2) - 1),
+            do: String.slice(remaining, i * 2, 2)
+
+      {final_lon, final_lat, final_lon_div, final_lat_div} =
+        Enum.reduce(
+          Enum.with_index(pairs, 1),
+          {base_lon, base_lat, lon_div, lat_div},
+          &decode_pair/2
+        )
+
+      # Center within the final grid cell
+      {final_lon + final_lon_div / 2, final_lat + final_lat_div / 2, final_lon_div,
+       final_lat_div}
+    end
+  end
+
+  defp decode_pair({pair, i}, {curr_lon, curr_lat, prev_lon_div, prev_lat_div})
+       when rem(i, 2) == 1 do
+    # Base 10 pair
+    curr_lon_div = prev_lon_div / 10
+    curr_lat_div = prev_lat_div / 10
+    val_lon = String.to_integer(String.at(pair, 0))
+    val_lat = String.to_integer(String.at(pair, 1))
+
+    {curr_lon + val_lon * curr_lon_div, curr_lat + val_lat * curr_lat_div, curr_lon_div,
+     curr_lat_div}
+  end
+
+  defp decode_pair({pair, _i}, {curr_lon, curr_lat, prev_lon_div, prev_lat_div}) do
+    # Base 24 pair
+    curr_lon_div = prev_lon_div / 24
+    curr_lat_div = prev_lat_div / 24
+    val_lon = from_base24(String.at(pair, 0))
+    val_lat = from_base24(String.at(pair, 1))
+
+    {curr_lon + val_lon * curr_lon_div, curr_lat + val_lat * curr_lat_div, curr_lon_div,
+     curr_lat_div}
   end
 
   @spec format_grid_reference(grid_reference()) :: grid_reference()
@@ -586,18 +577,19 @@ defmodule Gridsquare do
   @spec normalize_coordinates(longitude(), latitude()) ::
           {normalized_longitude(), normalized_latitude()}
   defp normalize_coordinates(lon, lat) do
-    # Normalize longitude to -180 to 180 range
-    cond_result =
-      cond do
-        lon < -180 -> lon + 360
-        lon > 180 -> lon - 360
-        true -> lon
-      end
+    # Normalize longitude to -180 to 180 range using modular arithmetic
+    temp = :math.fmod(lon + 180, 360)
+    temp = if temp < 0, do: temp + 360, else: temp
+    normalized_lon = temp - 180
 
+    # fmod maps both 180.0 and -180.0 to -180.0; preserve the convention
+    # that positive 180.0 input maps to 179.999999 (eastern edge)
     normalized_lon =
-      then(cond_result, fn l ->
-        if l == 180, do: 179.999999, else: l
-      end)
+      cond do
+        normalized_lon == -180.0 and lon > 0 -> 179.999999
+        normalized_lon == 180.0 -> 179.999999
+        true -> normalized_lon
+      end
 
     # Clamp latitude to just below 90
     normalized_lat =
