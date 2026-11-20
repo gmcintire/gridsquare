@@ -536,8 +536,7 @@ defmodule Gridsquare do
         )
 
       # Center within the final grid cell
-      {final_lon + final_lon_div / 2, final_lat + final_lat_div / 2, final_lon_div,
-       final_lat_div}
+      {final_lon + final_lon_div / 2, final_lat + final_lat_div / 2, final_lon_div, final_lat_div}
     end
   end
 
