@@ -178,11 +178,15 @@ defmodule GridsquareTest do
         encoded = Gridsquare.encode(original_lon, original_lat, precision)
         decoded = Gridsquare.decode(encoded.grid_reference)
 
-        assert_in_delta decoded.longitude, original_lon, decoded.width,
-          "longitude round-trip failed at precision #{precision}"
+        assert_in_delta decoded.longitude,
+                        original_lon,
+                        decoded.width,
+                        "longitude round-trip failed at precision #{precision}"
 
-        assert_in_delta decoded.latitude, original_lat, decoded.height,
-          "latitude round-trip failed at precision #{precision}"
+        assert_in_delta decoded.latitude,
+                        original_lat,
+                        decoded.height,
+                        "latitude round-trip failed at precision #{precision}"
       end
     end
 
@@ -281,8 +285,9 @@ defmodule GridsquareTest do
     test "encode produces correct length for all even precisions" do
       for precision <- [6, 8, 10, 12, 14, 16, 18, 20] do
         result = Gridsquare.encode(-111.866785, 40.363840, precision)
+
         assert String.length(result.grid_reference) == precision,
-          "Expected length #{precision}, got #{String.length(result.grid_reference)}"
+               "Expected length #{precision}, got #{String.length(result.grid_reference)}"
       end
     end
   end
